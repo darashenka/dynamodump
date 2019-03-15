@@ -11,6 +11,8 @@ dynamodump supports local DynamoDB instances as well (tested with [DynamoDB Loca
 
 Usage
 -----
+**NOTE**: When restoring or emptying the Dynamo DB, the schema will **NOT** include all attributes from the original table's schema. Only the attributes [shown here](https://github.com/mergermarket/dynamodump/blob/master/dynamodump.py#L739-L741) will be copied. Stream configuration, for example, is not copied.
+
 ```
 usage: dynamodump.py [-h] [-a {zip,tar}] [-b BUCKET]
                      [-m {backup,restore,empty}] [-r REGION] [--host HOST]
