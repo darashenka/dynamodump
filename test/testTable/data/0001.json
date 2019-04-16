@@ -13,9 +13,5 @@
       }
     }
   ], 
-  "ScannedCount": 1, 
-  "ConsumedCapacity": {
-    "TableName": "testRestoredTable", 
-    "CapacityUnits": 0.5
-  }
+  "ScannedCount": 1
 }
