@@ -63,12 +63,10 @@ def _get_aws_client(profile, region, service):
     """
     Build connection to some AWS service.
     """
-
     if region:
         aws_region = region
     else:
         aws_region = os.getenv("AWS_DEFAULT_REGION")
-
     # Fallback to querying metadata for region
     if not aws_region:
         try:
@@ -571,7 +569,6 @@ def do_backup(dynamo, read_capacity, tableQueue=None, srcTable=None):
 
                 # override table read capacity if specified
                 if read_capacity is not None and read_capacity != original_read_capacity:
-                    print('updating p t')
                     update_provisioned_throughput(dynamo, table_name,
                                                   read_capacity, original_write_capacity)
 
@@ -653,8 +650,6 @@ def do_restore(dynamo, sleep_interval, source_table, destination_table, write_ca
     original_write_capacity = table["ProvisionedThroughput"]["WriteCapacityUnits"]
     table_local_secondary_indexes = table.get("LocalSecondaryIndexes")
     table_global_secondary_indexes = table.get("GlobalSecondaryIndexes")
-
-    print(table)
 
     if table["BillingModeSummary"] is not None:
         if table["BillingModeSummary"]["BillingMode"] != "PAY_PER_REQUEST":
@@ -901,12 +896,10 @@ def main():
 
     # instantiate connection
     if args.region == LOCAL_REGION:
-        print(args.host)
-        print(args.port)
         conn = boto3.client('dynamodb', endpoint_url='http://%s:%s'%(args.host, args.port), region_name='us-west-2')                                                
         sleep_interval = LOCAL_SLEEP_INTERVAL
     else:
-        conn = boto3.client('dynamodb')
+        conn = boto3.client('dynamodb', region_name=args.region)
         sleep_interval = AWS_SLEEP_INTERVAL
 
     # don't proceed if connection is not established
