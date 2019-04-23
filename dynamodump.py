@@ -23,8 +23,6 @@ import re
 import zipfile
 import tarfile
 
-import pdb
-
 try:
     from queue import Queue
 except ImportError:
