@@ -37,6 +37,8 @@ except ImportError:
 import botocore
 import boto3
 
+print("Hello Dynamodump")
+
 
 JSON_INDENT = 2
 AWS_SLEEP_INTERVAL = 10  # seconds
