@@ -37,7 +37,7 @@ except ImportError:
 import botocore
 import boto3
 
-print("Hello Dynamodump")
+print("Hello Dynamodump (Mergermarket custom version)")
 
 
 JSON_INDENT = 2
