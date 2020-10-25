@@ -55,7 +55,7 @@ RESTORE_WRITE_CAPACITY = 25
 THREAD_START_DELAY = 1  # seconds
 CURRENT_WORKING_DIR = os.getcwd()
 DEFAULT_PREFIX_SEPARATOR = "-"
-MAX_NUMBER_BACKUP_WORKERS = 25
+MAX_NUMBER_BACKUP_WORKERS = 2
 METADATA_URL = "http://169.254.169.254/latest/meta-data/"
 
 
@@ -282,15 +282,9 @@ def get_table_name_matches(conn, table_name_wildcard, separator):
     all_tables = []
     last_evaluated_table_name = None
 
-    while True:
-        table_list = conn.list_tables(
-            exclusive_start_table_name=last_evaluated_table_name)
-        all_tables.extend(table_list["TableNames"])
+    table_list = conn.list_tables()
+    all_tables.extend(table_list["TableNames"])
 
-        try:
-            last_evaluated_table_name = table_list["LastEvaluatedTableName"]
-        except KeyError:
-            break
 
     matching_tables = []
     for table_name in all_tables:
@@ -563,9 +557,9 @@ def do_backup(dynamo, read_capacity, tableQueue=None, srcTable=None):
 
             if not args.schemaOnly:
                 original_read_capacity = \
-                    table_desc["Table"]["ProvisionedThroughput"]["ReadCapacityUnits"]
+                    table_desc["Table"]["ProvisionedThroughput"]["ReadCapacityUnits"] if "ProvisionedThroughput" in table_desc["Table"] else None
                 original_write_capacity = \
-                    table_desc["Table"]["ProvisionedThroughput"]["WriteCapacityUnits"]
+                    table_desc["Table"]["ProvisionedThroughput"]["WriteCapacityUnits"] if "ProvisionedThroughput" in table_desc["Table"] else None
 
                 # override table read capacity if specified
                 if read_capacity is not None and read_capacity != original_read_capacity:
@@ -646,8 +640,8 @@ def do_restore(dynamo, sleep_interval, source_table, destination_table, write_ca
     table_attribute_definitions = table["AttributeDefinitions"]
     table_table_name = destination_table
     table_key_schema = table["KeySchema"]
-    original_read_capacity = table["ProvisionedThroughput"]["ReadCapacityUnits"]
-    original_write_capacity = table["ProvisionedThroughput"]["WriteCapacityUnits"]
+    original_read_capacity = table["ProvisionedThroughput"]["ReadCapacityUnits"] if "ProvisionedThroughput" in table else None
+    original_write_capacity = table["ProvisionedThroughput"]["WriteCapacityUnits"] if "ProvisionedThroughput" in table else None
     table_local_secondary_indexes = table.get("LocalSecondaryIndexes")
     table_global_secondary_indexes = table.get("GlobalSecondaryIndexes")
 
@@ -681,6 +675,11 @@ def do_restore(dynamo, sleep_interval, source_table, destination_table, write_ca
         logging.info("Creating " + destination_table + " table with temp write capacity of " +
                      str(write_capacity))
 
+        if table_global_secondary_indexes is not None:
+            for gsi in table_global_secondary_indexes:
+                if "Projection" not in gsi:
+                    gsi['Projection'] = {}
+
         while True:
             try:
                 # dynamo.create_table(table_attribute_definitions, table_table_name, table_key_schema,
@@ -710,7 +709,8 @@ def do_restore(dynamo, sleep_interval, source_table, destination_table, write_ca
             except dynamo.exceptions.LimitExceededException:
                 logging.info("Limit exceeded, retrying creation of " + destination_table + "..")
                 time.sleep(sleep_interval)
-            except dynamo.exceptions.ThrottlingException:
+            # except dynamo.exceptions.ThrottlingException:
+            except dynamo.exceptions.ProvisionedThroughputExceededException:
                 logging.info("Control plane limit exceeded, "
                                  "retrying creation of " + destination_table + "..")
                 time.sleep(sleep_interval)
@@ -764,7 +764,7 @@ def do_restore(dynamo, sleep_interval, source_table, destination_table, write_ca
 
         if not args.skipThroughputUpdate:
             # revert to original table write capacity if it has been modified
-            if int(write_capacity) != original_write_capacity:
+            if write_capacity and int(write_capacity) != original_write_capacity:
                 update_provisioned_throughput(dynamo,
                                               destination_table,
                                               original_read_capacity,
@@ -775,10 +775,10 @@ def do_restore(dynamo, sleep_interval, source_table, destination_table, write_ca
             if table_global_secondary_indexes is not None:
                 gsi_data = []
                 for gsi in table_global_secondary_indexes:
-                    wcu = gsi["ProvisionedThroughput"]["WriteCapacityUnits"]
-                    rcu = gsi["ProvisionedThroughput"]["ReadCapacityUnits"]
-                    original_gsi_write_capacity = original_gsi_write_capacities.pop(0)
-                    if original_gsi_write_capacity != wcu:
+                    wcu = gsi["ProvisionedThroughput"]["WriteCapacityUnits"] if "ProvisionedThroughput" in gsi else None
+                    rcu = gsi["ProvisionedThroughput"]["ReadCapacityUnits"] if "ProvisionedThroughput" in gsi else None
+                    original_gsi_write_capacity = original_gsi_write_capacities.pop(0) if original_gsi_write_capacities is not None else None
+                    if wcu and original_gsi_write_capacity != wcu:
                         gsi_data.append({
                             "Update": {
                                 "IndexName": gsi["IndexName"],
